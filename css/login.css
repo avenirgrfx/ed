@@ -1,0 +1,125 @@
+@charset "utf-8";
+/* CSS Document */
+
+@import url(http://fonts.googleapis.com/css?family=Open+Sans:300,400,700);
+
+@font-face {
+    font-family: UsEnergyEngineers;
+    src: url(../fonts/ge-inspira.ttf);
+	
+}
+
+body
+{
+	font-family:UsEnergyEngineers;
+	margin:0px;
+	padding:0px;
+	font-size:12px;
+}
+
+#Main_Container
+{
+	width:900px;
+	margin:20px auto;
+}
+
+#Container
+{
+	border:4px solid #5283B3;
+	min-height:400px;
+}
+
+#Header
+{
+	margin-bottom:10px;
+}
+
+#Bar
+{
+	background-color:#d3dfed;
+	text-align:right;
+	padding:5px;
+	color:#333333;
+	font-size:14px;
+}
+.clear
+{
+	clear:both;
+}
+
+#login_box
+{
+	background-color:#d3dfed;
+	width:95%;
+	height:150px;
+	padding:15px;
+}
+
+#content_area
+{
+	margin:30px auto;
+	width:850px;
+}
+
+#right_side_box
+{
+	float:left;
+	width:520px;
+	margin-left:30px;
+}
+
+#left_side_box
+{
+	width:300px;
+	float:left;
+}
+
+#Footer_Link 
+{
+	margin: 5px auto; width: 400px; text-align: center; font-size: 12px;
+}
+
+#Footer_Link a:link, #Footer_Link a:visited
+{
+	color:#1B3663;
+}
+
+input[type="text"], input[type="password"]
+{
+	border-radius: 5px;
+  border: 1px solid #CCC;
+  padding: 5px;
+  width: 250px;
+  font-size: 16px;
+}
+
+.TextReflection {
+	font-size:26px;
+	font-weight:bold;
+	color:#666666;
+	margin:12px 15px;
+	/*float:left;*/
+	text-transform:uppercase;	
+    -webkit-box-reflect: below -5px -webkit-gradient(linear, left top, left bottom, from(transparent), to(rgba(255, 255, 255, 0.3)));
+}
+
+
+.error_message
+{
+	background-color:#FFFF00;
+	color:#FF0000;
+	padding:5px;
+	text-align:center;
+	font-size:14px;
+	font-weight:bold;
+}
+
+.success_message
+{
+	background-color:#006600;
+	color:#EFEFEF;
+	padding:5px;
+	text-align:center;
+	font-size:14px;
+	font-weight:bold;
+}

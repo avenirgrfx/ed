@@ -1,0 +1,608 @@
+<?php
+ob_start();
+session_start();
+require_once("../../configure.php");
+require_once(AbsPath . "classes/all.php");
+require_once(AbsPath . "classes/customer.class.php");
+
+$DB = new DB;
+
+$adminUsername = Globals::GetPortfolioUsername();
+$adminPassword = Globals::GetPortfolioPassword();
+
+if(isset($_POST) && !empty($_POST) && $_POST['mode']=='meter'){
+    //print_r($_POST);exit;
+    $strSQL="Select M.*, A.utility_account_type, B.property_id from t_utility_account_meters M inner join t_utility_accounts A on M.utility_account_id = A.utility_account_id inner join t_building B on A.building_id = B.building_id where M.utility_meter_number = '".$_POST['meter_id']."'";
+    
+    $strMeterArr=$DB->Returns($strSQL); 
+    while($strMeter=mysql_fetch_object($strMeterArr)) { 
+        if ($strMeter->utility_account_type == 1) {
+            $meter_type = 'Electric';
+        }else if ($strMeter->utility_account_type == 2){
+            $meter_type = 'Natural Gas';
+        }else if ($strMeter->utility_account_type == 3){
+            $meter_type = 'District Chilled Water - Other';
+        }else{
+            $meter_type = 'Other';
+        }
+        
+        $meter_number = $strMeter->meter_number;
+        $property_id = $strMeter->property_id;
+        
+        $CreateMeter='
+            <meter>
+                <type>'.$meter_type.'</type>
+                <name>'.$meter_number.'</name>
+                <unitOfMeasure>MBtu (million Btu)</unitOfMeasure>
+                <firstBillDate>2014-01-01</firstBillDate>
+                <inUse>true</inUse>
+            </meter>';
+
+        //print_r($CreateMeter);exit;
+
+        $response = Globals::CallAPI("POST",'https://'.$adminUsername.':'.$adminPassword.'@portfoliomanager.energystar.gov/wstest/property/'.$property_id.'/meter', $CreateMeter);
+        //echo $customer_id;
+        //$customer_id = "";
+        //echo $response;
+        if(simplexml_load_string($response)){
+            $response = new SimpleXMLElement($response);
+            if($response['status'][0]=="Ok"){
+                $meter_id = $response->id[0];
+                //echo $meter_id;
+               // $DB = new DB;
+                $strSQL="update t_utility_account_meters set meter_id = '$meter_id' where utility_meter_number = '".$_POST['meter_id']."'";
+                $DB->Execute($strSQL);
+                echo "success";exit;
+            }else{
+                foreach($response->errors[0]->error as $error){
+                    echo ($error['errorDescription']);
+                    echo "</br>";
+                };
+            }
+        }else{
+            echo "Error in request";
+        }
+    }
+}else if(isset($_POST) && !empty($_POST) && $_POST['mode']=='data'){
+    //print_r($_POST);exit;
+    $strSQL="Select STR_TO_DATE(`from`,'%m/%d/%Y') as start, STR_TO_DATE(`to`,'%m/%d/%Y') as end, consumption, meter_id from t_utility_bills B inner join t_utility_account_meters M on B.utility_meter_id = M.utility_meter_number where B.portfolio_status = 0 AND B.utility_meter_id = '".$_POST['meter_id']."'";
+    $strBillArr=$DB->Returns($strSQL); 
+    
+    if(mysql_num_rows($strBillArr) > 0){
+        $CreateBill = '<meterData>';
+        while($strBill=mysql_fetch_object($strBillArr)) { 
+            $meter_id = $strBill->meter_id;
+            $CreateBill.= '
+                <meterConsumption>
+                    <usage>'.$strBill->consumption.'</usage>
+                    <startDate>'.$strBill->start.'</startDate>
+                    <endDate>'.$strBill->end.'</endDate>
+                </meterConsumption>';
+
+            //print_r($CreateMeter);exit;
+        }
+        $CreateBill.= '</meterData>';
+        //echo $CreateBill;exit;
+        $response = Globals::CallAPI("POST",'https://'.$adminUsername.':'.$adminPassword.'@portfoliomanager.energystar.gov/wstest/meter/'.$meter_id.'/consumptionData', $CreateBill);
+        //echo $customer_id;
+        //$customer_id = "";
+        //echo $response;exit;
+        if(simplexml_load_string($response)){
+            $response = new SimpleXMLElement($response);
+            if(!$response->errors){
+                //$meter_id = $response->id[0];
+                //echo $meter_id;
+                //$DB = new DB;
+                $strSQL="update t_utility_bills set portfolio_status = 1 where utility_meter_id = '".$_POST['meter_id']."'";
+                $DB->Execute($strSQL);
+                echo "success";exit;
+            }else{
+                foreach($response->errors[0]->error as $error){
+                    echo "error in data.";
+                    //echo "</br>";
+                };
+            }
+        }else{
+            echo "Error in request";
+        }
+    }else{
+        echo "no new data available to add";
+    }
+} else {
+    
+if (Globals::Get('building_id') <> '' and Globals::Get('building_id') <> 0) {
+    
+    $BuildingArray = $DB->Lists(array('Query' => 'Select B.*, C.customer_id from t_building B left join t_portfolio_client C on B.client_id = C.client_id  where building_id=' . Globals::Get('building_id')));
+    if (!is_array($BuildingArray)) {
+        print 'Invalid ID';
+        exit();
+    }
+    foreach ($BuildingArray as $Val) {
+        $building_id = $Val->building_id;
+        $client_id = $Val->client_id;
+        $building_name = $Val->building_name;
+        $location = $Val->location;
+        $address_line1 = $Val->address_line1;
+        $address_line2 = $Val->address_line2;
+        $city = $Val->city;
+        $state = $Val->state;
+        $zip = $Val->zip;
+        $country = $Val->country;
+        $time_zone = $Val->time_zone;
+        $square_feet = $Val->square_feet;
+        $contact_name = $Val->contact_name;
+        $contact_email = $Val->contact_email;
+        $department = $Val->department;
+        $telephone = $Val->telephone;
+        $portfolio_status = $Val->portfolio_status;
+        $property_id = $Val->property_id;
+        $customer_id = $Val->customer_id;
+        $primary_function = $Val->primary_function;
+        $construction_status = $Val->construction_status;
+        $year_built = $Val->year_built;
+        $federal = $Val->federal;
+        $occupancy = $Val->occupancy;
+        $doc = $Val->doc;
+        $dom = $Val->dom;
+    }
+    
+    if($portfolio_status == 0){
+        $CreateProperty='
+            <property>
+                <name>'.$building_name.'</name>
+                <constructionStatus>Existing</constructionStatus>
+                <primaryFunction>Office</primaryFunction>
+                <grossFloorArea temporary="true" units="Square Feet">
+                    <value>'.$square_feet.'</value>
+                </grossFloorArea>
+                <yearBuilt>2000</yearBuilt>
+                <address postalCode="'.$zip.'" address1="'.$address_line1.'" city="'.$city.'" state="'.$state.'" country="US"/>
+                <numberOfBuildings>1</numberOfBuildings>
+                <isFederalProperty>false</isFederalProperty>
+                <occupancyPercentage>55</occupancyPercentage>
+            </property>';
+        
+        $response = Globals::CallAPI("POST",'https://'.$adminUsername.':'.$adminPassword.'@portfoliomanager.energystar.gov/wstest/account/'.$customer_id.'/property', $CreateProperty);
+        //echo $customer_id;
+        //$customer_id = "";
+        //echo $response;
+        if(simplexml_load_string($response)){
+            $response = new SimpleXMLElement($response);
+            if($response['status'][0]=="Ok"){
+                $property_id = $response->id[0];
+                //echo $property_id;
+                $DB = new DB;
+                $strSQL = "update t_building set portfolio_status = 1, property_id = $property_id where building_id = ".$building_id;
+                $DB->Returns($strSQL);
+            }else{
+                foreach($response->errors[0]->error as $error){
+                    echo ($error['errorDescription']);
+                    echo "</br>";exit;
+                };
+            }
+        }else{
+            echo "Error in request";exit;
+        }
+    }
+} else {
+    $client_id = 0;
+}
+?>
+
+<script type="text/javascript">
+$(function(){
+    $('#meters').trigger('change');
+});    
+function addMeterPM(meter_id){
+//    var meter_id = $('#meter_id').val();
+//    var meter_type = $('#meter_type').val();
+//    var meter_name = $('#meter_name').val();
+//    var meter_unit = $('#meter_unit').val();
+//    var meter_bill_date = $('#meter_bill_date').val();
+//    var meter_in_use = $('#meter_in_use').val();
+//    var meter_add_energydas = $('#meter_add_energydas').val();
+    console.log("adding meter");
+    $.post("ajax_pages/portfolio_manager/building_portfolio_data.php",
+        {
+            meter_id: meter_id,		
+            mode: "meter"
+//            meter_type: meter_type,				
+//            meter_name: meter_name,				
+//            meter_unit: meter_unit,				
+//            meter_bill_date: meter_bill_date,				
+//            meter_in_use: meter_in_use,				
+//            meter_add_energydas: meter_add_energydas
+        },
+    function(data,status){						
+            //$('#ddlBuildingList').html(data);
+            console.log(data);
+            if(data == "success"){
+                $('#meters').trigger('change');
+                alert('Meter successfully added to portfolio manager');
+            } else {
+                alert(data);
+            }
+    });
+}
+
+function addDataPM(meter_id){
+    console.log("adding data");
+    $.post("ajax_pages/portfolio_manager/building_portfolio_data.php",
+        {
+            meter_id: meter_id,
+            mode: "data"
+        },
+    function(data,status){						
+            if(data == "success"){
+                //$('#meters').trigger('change');
+                alert('Meter data successfully added to portfolio manager');
+            } else {
+                alert(data);
+            }
+    });
+}
+
+function changeMeter(id){
+    $('#meter_info').html('<tr><td colspan="2">Loading...</td></tr>');
+    $.get("ajax_pages/portfolio_manager/meter_data.php",
+        {
+            meter_id: id,				
+        },
+    function(data,status){						
+            $('#meter_info').html(data);
+            console.log(data);
+    }); 
+}
+</script>
+
+<div style="width:75%; float:left;">
+    <div style="width:55%; float:left; font-size:13px; border:2px solid #dedede;">
+        <form action="" method="post" enctype="multipart/form-data" name="frmProperty">
+            <table width="100%" border="0" cellspacing="0" cellpadding="3">
+                <tr style="background-color:#dedede;">
+                    <td colspan="2"><h2>PROPERTY/BUILDING</h2></td>
+                </tr>
+                <tr>
+                    <td width="35%"><h2 style="font-size: 16px;">Property Name:</h2></td>
+                    <td width="65%"><h2 style="font-size: 16px;"><?=$building_name?> - ID <?=$property_id?></h2></td>
+                </tr>
+                <tr>
+                    <td>Primary Function:</td>
+                    <td><?=$primary_function?></td>
+                </tr>
+                <tr>
+                    <td>Address:</td>
+                    <td><?=$address_line1." ".$city." ".$state." ".$zip?></td>
+                </tr>
+                <tr>
+                    <td>Year Built:</td>
+                    <td><?=$year_built?></td>
+                </tr>
+                <tr>
+                    <td>Construction Status:</td>
+                    <td><?=$construction_status?></td>
+                </tr>
+                <tr>
+                    <td>Gross Floor Area:</td>
+                    <td><?=$square_feet?></td>
+                </tr>
+                <tr>
+                    <td>Federal Property:</td>
+                    <td><?=$federal?></td>
+                </tr>
+<!--                <tr>
+                    <td>Federal Agency:</td>
+                    <td>Advisory Council on Historic Preservation (ACHP)</td>
+                </tr>-->
+                <tr>
+                    <td>Country:</td>
+                    <td>US</td>
+                </tr>
+                <tr>
+                    <td>Created By:</td>
+                    <td>Felix Goto (President)</td>
+                </tr>
+                <tr>
+                    <td>Date created:</td>
+                    <td><?=$doc?></td>
+                </tr>
+                <tr>
+                    <td>Last Updated:</td>
+                    <td>Felix Goto (President)</td>
+                </tr>
+                <tr>
+                    <td>Last update Date:</td>
+                    <td><?=$dom?></td>
+                </tr>
+                <tr>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </tr>
+            </table>
+        </form>
+    </div>
+    <div style="width:42%; float:left; margin-left:1%; font-size:13px; border:2px solid #dedede;">
+        <form action="" method="post" enctype="multipart/form-data" name="frmProperty">
+            <table width="100%" border="0" cellspacing="0" cellpadding="3">
+                <tr style="background-color:#dedede;">
+                    <td colspan="2"><h2>METER SERVICES</h2></td>
+                </tr>
+                <tr>
+                    <td width="45%"><h2 style="font-size: 16px;">METER</h2></td>
+                    <td width="55%">
+                        <select name="meters" id="meters" onchange="changeMeter(this.value);">
+                            <?php
+                            $i=1;
+                            $MeterArray = $DB->Lists(array('Query' => 'Select utility_meter_number from t_utility_account_meters M inner join t_utility_accounts A on M.utility_account_id = A.utility_account_id where building_id=' . Globals::Get('building_id')));
+                            foreach ($MeterArray as $Meter) {
+                            ?>
+                                <option value="<?=$Meter->utility_meter_number?>">Meter <?=$i?></option>
+                            <?php $i++;} ?>
+                        </select>
+                    </td>
+                </tr>
+                
+                <tbody id="meter_info">
+                    <tr><td colspan="2">Loading...</td></tr>
+                </tbody>
+            </table>
+        </form>
+    </div>
+    <div class="clear" style="clear:both;"></div>
+    <div style="width:55%; float:left; margin-top:1%; padding-bottom: 2px; font-size:13px; border:2px solid #dedede;">
+        <form action="" method="post" enctype="multipart/form-data" name="frmProperty">
+            <table width="100%" border="0" cellspacing="0" cellpadding="3">
+                <tr style="background-color:#dedede;">
+                    <td colspan="2"><h2>PROPERTY DESIGN</h2></td>
+                </tr>
+                <tr>
+                    <td width="35%">Open on Weekends:</td>
+                    <td width="65%">Yes</td>
+                </tr>
+                <tr>
+                    <td>Open Weekends-% Cooled:</td>
+                    <td>20</td>
+                </tr>
+                <tr>
+                    <td>Open Weekends-% Cooled:</td>
+                    <td>10</td>
+                </tr>
+                <tr>
+                    <td>Number of Computers:</td>
+                    <td>30</td>
+                </tr>
+                <tr>
+                    <td>Cooking Facilities:</td>
+                    <td>Yes</td>
+                </tr>
+                <tr>
+                    <td>Months in Use/Yr:</td>
+                    <td>8</td>
+                </tr>
+                <tr>
+                    <td>Energy Type:</td>
+                    <td>Electric</td>
+                </tr>
+                <tr>
+                    <td>Energy Unit:</td>
+                    <td>MBtu (million BTU)</td>
+                </tr>
+                <tr>
+                    <td>Estimated Annual Usage:</td>
+                    <td>10</td>
+                </tr>
+                <tr>
+                    <td>Energy Rate Cost:</td>
+                    <td>100.1</td>
+                </tr>
+                <tr>
+                    <td>Energy Rate Cost Unit:</td>
+                    <td>MBtu (million BTU)</td>
+                </tr>
+                <tr>
+                    <td>Target Type Score:</td>
+                    <td>55</td>
+                </tr>
+            </table>
+        </form>
+    </div>
+    <div style="width:42%; float:left; margin-left:1%; margin-top:1%; font-size:13px; border:2px solid #dedede;">
+        <form action="" method="post" enctype="multipart/form-data" name="frmProperty">
+            <table width="100%" border="0" cellspacing="0" cellpadding="3">
+                <tr style="background-color:#dedede;">
+                    <td colspan="2"><h2>PROJECT</h2></td>
+                </tr>
+                <tr>
+                    <td colspan="2">
+                        <div style="border: 1px solid #999999; border-radius: 5px;">
+                            <input type="button" name="button"  value="IMPORT PROJECT RECORDS FROM ENERGYDAS" style="border: 0 none; width:100%">
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td width="45%">Category:</td>
+                    <td width="55%">Recommissioning Stage 1</td>
+                </tr>
+                <tr>
+                    <td>Investment Cost:</td>
+                    <td>65000</td>
+                </tr>
+                <tr>
+                    <td>Project Description:</td>
+                    <td>Recommissioning in Building 1</td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="text-decoration: underline;">Implementation Period</td>
+                </tr>
+                <tr>
+                    <td>Implementation Date:</td>
+                    <td>2015-11-03</td>
+                </tr>
+                <tr>
+                    <td>Post Implementation Date:</td>
+                    <td>2015-11-03</td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="text-decoration: underline;">Evaluation Period</td>
+                </tr>
+                <tr>
+                    <td>Project Name:</td>
+                    <td>Duct Work (Phase 2)</td>
+                </tr>
+                <tr>
+                    <td>Implementation Date:</td>
+                    <td>2015-11-03</td>
+                </tr>
+                <tr>
+                    <td>Estimated Savings:</td>
+                    <td>45000</td>
+                </tr>
+                <tr>
+                    <td>End Date:</td>
+                    <td>2015-11-03</td>
+                </tr>
+            </table>
+        </form>
+    </div>
+</div>
+<div style="float:left;width:25%;">
+<!--    <div style="width:100% ; float:left; font-size:13px; border:2px solid #dedede;">
+        <form action="" method="post" enctype="multipart/form-data" name="frmProperty">
+            <table width="100%" border="0" cellspacing="0" cellpadding="3">
+                <tr>
+                    <td colspan="2"><h2 style="width:65%; font-size: 15px; float:left;">ADD NEW METER</h2>
+                        <div style="border: 1px solid #999999; border-radius: 5px; float:right; margin-right: 10px; margin-top: 10px;">
+                            <input type="button" name="button"  value="ADD" style="border: 0 none; width:100%" onclick="addMeter()">
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td width="45%">Meter ID:</td>
+                    <td width="55%"><input type="text" name="meter_id" id="meter_id" class="textbox" value="" autocomplete="off" style="width:130px; height: 15px;"/></td>
+                </tr>
+                <tr>
+                    <td>Meter Type:</td>
+                    <td>
+                        <select style="width:145px; height: 25px;" name="meter_type" id="meter_type">
+                            <option>Electric</option>
+                            <option>Natural Gas</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td>Meter Name:</td>
+                    <td><input type="text" name="meter_name" id="meter_name" class="textbox" value="" autocomplete="off" style="width:130px; height: 15px;"/></td>
+                </tr>
+                <tr>
+                    <td>Meter Unit of Measure:</td>
+                    <td>
+                        <select style="width:145px; height: 25px;" id="meter_unit" class="textbox">
+                            <option value="kBtu (thousand Btu)">kbtu</option>
+                            <option value="MBtu (million Btu)">mbtu</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td>First Bill Date:</td>
+                    <td><input type="text" name="meter_bill_date" id="meter_bill_date" class="textbox" class="textbox" value="2015-11-03" autocomplete="off" style="width:130px; height: 15px;"/></td>
+                </tr>
+                <tr>
+                    <td>In Use:</td>
+                    <td>
+                        <select style="width:145px; height: 25px;" id="meter_in_use" class="textbox">
+                            <option>Yes</option>
+                            <option>No</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td>Add to energyDAS:</td>
+                    <td>
+                        <select style="width:145px; height: 25px;" id="meter_add_energydas" class="textbox">
+                            <option>Yes</option>
+                            <option>No</option>
+                        </select>
+                    </td>
+                </tr>
+            </table>
+        </form>
+    </div>
+    <div class="clear" style="clear:both;"></div>-->
+    <div style="width:100% ; float:left; /*margin-top:3%;*/ font-size:13px; border:2px solid #dedede; height: 580px; overflow: auto;">
+        <form action="" method="post" enctype="multipart/form-data" name="frmProperty">
+            <table width="100%" border="0" cellspacing="0" cellpadding="3">
+                <tr>
+                    <td colspan="2"><h2 style="width:65%; font-size: 15px; float:left;">EXISTING METER LIST</h2>
+<!--                        <div style="border: 1px solid #999999; border-radius: 5px; float:right; margin-right: 10px; margin-top: 10px;">
+                            <input type="button" name="button"  value="LIST ALL" style="border: 0 none; width:100%">
+                        </div>-->
+                    </td>
+                </tr>
+                <tr>
+                    <td>Meter Number</td>
+                    <td>Meter ID</td>
+                </tr>
+                <tr>
+                    <td width="45%" colspan="2" style="font-weight: bold;">Electric Meters</td>
+                </tr>
+                <?php
+                $MeterArray = $DB->Lists(array('Query' => 'Select M.* from t_utility_account_meters M inner join t_utility_accounts A on M.utility_account_id = A.utility_account_id where utility_account_type = 1 AND building_id=' . Globals::Get('building_id')));
+                foreach ($MeterArray as $Meter) { ?>
+                    <tr>
+                        <td><?=$Meter->meter_number;?></td>
+                        <td><?=$Meter->utility_meter_number;?></td>
+                    </tr>
+                <?php } ?>
+                
+                <tr>
+                    <td width="45%" colspan="2" style="font-weight: bold;">Natural Gas Meters</td>
+                </tr>
+                <?php
+                $MeterArray = $DB->Lists(array('Query' => 'Select M.* from t_utility_account_meters M inner join t_utility_accounts A on M.utility_account_id = A.utility_account_id where utility_account_type = 2 AND building_id=' . Globals::Get('building_id')));
+                foreach ($MeterArray as $Meter) { ?>
+                    <tr>
+                        <td><?=$Meter->meter_number;?></td>
+                        <td><?=$Meter->utility_meter_number;?></td>
+                    </tr>
+                <?php } ?>
+                    
+                <tr>
+                    <td width="45%" colspan="2" style="font-weight: bold;">Water Meters</td>
+                </tr>
+                <?php
+                $MeterArray = $DB->Lists(array('Query' => 'Select M.* from t_utility_account_meters M inner join t_utility_accounts A on M.utility_account_id = A.utility_account_id where utility_account_type = 3 AND building_id=' . Globals::Get('building_id')));
+                foreach ($MeterArray as $Meter) { ?>
+                    <tr>
+                        <td><?=$Meter->meter_number;?></td>
+                        <td><?=$Meter->utility_meter_number;?></td>
+                    </tr>
+                <?php } ?>
+            </table>
+        </form>
+    </div>
+    <div class="clear" style="clear:both;"></div>
+    <div style="width:100% ; float:left; margin-top:3%; font-size:13px; border:2px solid #dedede;">
+        <form action="" method="post" enctype="multipart/form-data" name="frmProperty">
+            <table width="100%" border="0" cellspacing="0" cellpadding="3">
+                <tr>
+                    <td colspan="2">&nbsp;</td>
+                </tr>
+                <tr>
+                    <td colspan="2"><h2 style="font-size: 15px;">TARGET FINDER BUILDING METRICS</h2></td>
+                </tr>
+                <tr>
+                    <td width="2" style="text-align: center;">
+                        <div style="border: 2px solid #999999; border-radius: 10px; padding: 10px; margin: 10px; text-align: center; width: 250px; background-color: #ffffff;">
+                            <img border="0" style="height: 47px;" src="<?=URL?>images/portfolio_manager_logo.png">
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2">&nbsp;</td>
+                </tr>
+            </table>
+        </form>
+    </div>
+</div>
+<div class="clear" style="clear:both;"></div>
+<?php } ?>

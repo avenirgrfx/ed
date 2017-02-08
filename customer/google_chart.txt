@@ -1,0 +1,12 @@
+pieHole: 0.5,
+width: 500,
+height: 300,
+
+colors: ['#e0440e', '#e6693e', '#ec8f6e', '#f3b49f', '#f6c7b6'],	 // Array of colors to change default color ofany chart	  
+
+chartArea: {width: '100%'},   // Handle the placement of Chart area in full width of div size
+
+tooltip: { text: 'value' },  // Handel the diplayed text for sliced area of pie chart wheb you mouseover
+
+
+pieSliceText: 'label'   // Text displayed on sliced area of Pie Chart

@@ -1,0 +1,24 @@
+@charset "utf-8";
+/* CSS Document */
+body
+{
+	font-family:Arial, Helvetica, sans-serif;
+	font-size:12px;
+}
+
+.TextBox_Div
+{
+	padding:5px;
+}
+
+.TextBox
+{
+	padding:3px;
+	width:200px;
+	font-size:14px;
+	border:1px solid #CCCCCC;
+}
+.Button
+{
+	padding:3px;
+}
